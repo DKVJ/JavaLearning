@@ -1,0 +1,40 @@
+Collection 集合类  源码
+
+ArrayList 
+扩容是通过Arrays.copyOf(T[] original,int newLength)，实际是System.arraycopy本地方法实现，性能比用java new一个新数组然后for循环复制和clone快   是否会产生内存垃圾？？是的，原来的数组对象在堆中失去引用变成了垃圾，另外Arrays.copyOf是浅拷贝
+remove方法也一样，调用System.arraycopy把i+1后面的元素copy覆盖到i的位置，自然就把i去除掉了
+
+迭代器是内部类Itr继承于Iterator，通过ModCount的不同来判断原集合是否被修改， Itr的remove方法只是通过ArrayList.this.remove后重新给ModCount赋值并改变当前指针
+
+LinkedList
+用双向链表实现，get（int index）时判断index在前还是后
+
+
+
+HashMap
+int hash（Object key） key的hash值为key.hashCode()与自己>>>16后的数异或得到（由于散列值是取余数，即后面几位，因此要把高位和低位异或，防止仅有低位起作用）。
+capacity---容量  默认值为1<<4，即16，只能2倍增长或缩小，好处是计算散列值是采用除留余数法，可直接通过（capacity-1）&hash取余数，提高计算效率。
+threshold-----阈值 通常threshold = capacity*loadFactor ，决定扩容的值。
+loadFactor----负载因子  决定当存储节点超过容量某个比例的时候扩容，默认0.75，防止性能降低。
+resize put会检查size++ >threshold来调用resize，remove则没有,resize本质也是new一个新的HashMap（新的capacity意味着要重新hash）然后遍历旧table，若单个节点重hash放入新map，若红黑树调用树的split，若为链，由于容量为原来的两倍，hash取余多一位0或者1，即要么在原位要么在index乘2的位置，因此在这两个位置生成新的链，原链元素算出新的余数位是0或1来放在对应链上，最后把两个链的头赋值给newTable。
+put(K key,V value) 检查table是否为空~初始化，key的hash散列值位置为null，直接添加，若存在节点判断是否与该key相等，不等则哈希冲突，若为链则逐个循环寻找，找到该key则更新找不到则添加，添加要判断节点数是否超过了treeifyThreshold(默认为8)，超过则转化为红黑树；若为红黑树则调用红黑树的方法，最后还要判断是否进行resize
+remove(key ) 与put基本相同，先查找key节点，找不到返回null，找到为红黑树节点则调用红黑树删除节点，为链节点则用链节点方式删除
+clone returns a shallow copy of this instance浅拷贝，clone一个新HashMap并putMapEntries（旧HashMap）
+containsValue方法：
+查找key方法如下图：
+writeObject/ readObject
+
+
+
+ConcurrentHashMap
+put 一个无限循环：若table为null初始化，若散列桶为null，使用CAS直接添加，若首节点的hash==MOVED（-1），则说明有别的线程正在resize，调用helpTransfer，若首节点真是要put的节点且不修改原值则直接返回，否则获取该节点对象锁-----如果该散列桶不等于该节点，说明可能size变了重新散列，或者该节点刚好被其他线程删除？这时候重新进入循环；没变则线程安全，继续下面操作--判断该节点hash若大于等于0说明是普通链，遍历添加，最后判断长度是否要转换为红黑树；否则判断节点是否为红黑树后添加，或者为ResservationNode抛出Recursive update异常。
+
+
+HashTable
+与HashMap实现几乎一模一样，只不过许多方法添加了synchronized确保线程同步，效率低，并且HashMap允许key或者value为null，HashTable不允许。
+
+TreeMap
+红黑树实现，因此当然是根据key自定义排序或者自然排序的
+
+LinkedHashMap
+HashMap的子类，用链的方法保存了元素的插入顺序，在用Iterator遍历先得到的元素是先插入的。HashMap里面已经准备好了几个方法让他覆盖了，只需要覆盖方法后原原本本地调用HashMap里面的put方法即可，因为put方法会调用这几个空方法。
